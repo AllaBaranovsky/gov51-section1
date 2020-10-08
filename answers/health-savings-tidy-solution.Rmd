@@ -39,45 +39,64 @@ Descriptions of the relevant variables in the data file `rosca.csv` are:
 
 ## Question 1: Inspect Data
 
-Load the data set as a `data.frame` and name it `rosca`.
+Load the data set as a `tibble` and name it `rosca`.
 Create a single factor variable `treatment` that takes the value `control` if receiving only encouragement, `safebox` if receiving a safe box,  and `lockbox` if receiving a locked box. How many individuals are in the control group? How many individuals are in each of the treatment arms?
+Show these numbers in a nice-looking table using `knitr::kable()`.
+
+Then create a cross-tab (of proportions, not counts) of study arm on the rows and gender on the columns.
 
 ## Answer 1
 
-```{r}
-rosca <- read.csv("data/rosca.csv")
-rosca$treatment <- NA
-rosca$treatment[rosca$encouragement == 1] <- "control"
-rosca$treatment[rosca$safe_box == 1] <- "safebox"
-rosca$treatment[rosca$locked_box == 1] <- "lockbox"
-rosca$treatment <- as.factor(rosca$treatment)
-knitr::kable(table(rosca$treatment), col.names = c("Treatment Condition", "N"))
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(knitr)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+rosca <- read_csv("data/rosca.csv")
+rosca <- rosca %>%
+  mutate(treatment = case_when(encouragement == 1 ~ "control",
+                               safe_box == 1 ~ "safebox",
+                               locked_box == 1 ~ "lockbox") %>%
+           as.factor())
+rosca %>%
+  count(treatment) %>%
+  knitr::kable(col.names = c("Treatment Condition", "N"))
 ```
 
 `r table(rosca$treatment)["control"]` are in the control group. `r table(rosca$treatment)["safebox"]` have received a safe box. `r table(rosca$treatment)["lockbox"]` have received a locked box.
+
+```{r}
+rosca %>%
+  mutate(gender = ifelse(bg_female == 1, "female", "non_female")) %>%
+  count(treatment, gender) %>%
+  mutate(proportion = n / sum(n)) %>%
+  pivot_wider(id_cols = treatment, names_from = gender, values_from = proportion) %>%
+  knitr::kable(col.names = c("Treatment Condition", "Female", "Non-female"))
+```
 
 ## Question 2: Drop-out Rate
 
 Subset the data so that it contains only participants who were interviewed in 12 months during the second followup.  We will use this subset for the subsequent analyses. How many participants are left in each group of this subset?  Does the drop-out rate differ across the treatment conditions?  What does this result suggest about the internal and external validity of this study?
 
-Create a matrix named `rosca_dropout` where the first column contains the number of participants left in each group,
-and the second column contains the drop-out rate across different treatment conditions.
-Generate a nice-looking table using `knitr::kable()`
+Generate a nice-looking table showing the number of participants left and the drop-out rate across different treatment conditions using `knitr::kable()`.
 
 ## Answer 2
 
 ```{r}
-rosca2 <- rosca[rosca$has_followup2 == 1, ]
+rosca2 <- rosca %>%
+  filter(has_followup2 == 1)
 
-# left in the follow-up 
-n_follow_up  <- table(rosca2$treatment)  
-rate_dropout <- (table(rosca$treatment)-table(rosca2$treatment))/table(rosca$treatment)
-
-# create a table 
-rosca_dropout <- cbind(n_follow_up, rate_dropout)
-knitr::kable(rosca_dropout, 
-             col.names = c("N in the follow-up", "Drop-out Rate"),
-             digits = 2)
+rosca %>%
+  group_by(treatment, has_followup2) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(has_followup2 = ifelse(has_followup2 == 1, "follow_up", "drop_out")) %>%
+  pivot_wider(names_from = has_followup2, values_from = n) %>%
+  mutate(rate_dropout = drop_out / (drop_out + follow_up)) %>%
+  select(treatment, follow_up, rate_dropout) %>%
+  knitr::kable(col.names = c("Treatment Condition", "N in the follow-up", "Drop-out Rate"),
+               digits = 2)
 ```
 
 In the subset, `r table(rosca2$treatment)["control"]` are in the control group. `r table(rosca2$treatment)["safebox"]` have received a safe box. `r table(rosca2$treatment)["lockbox"]` have received a locked box. The drop-out rates are similar for control group and safe box treatment, and slighly lower in the lock box treatment group.
@@ -86,16 +105,19 @@ If, after 12 months, the participants who remain in treatment groups and control
 
 ## Question 3: Average Treatment Effect
 
-Does receiving a safe box increase the amount invested in health products? We focus on the outcome measured 12 months from baseline during the second follow-up. Compare the mean of amount (in Kenyan shilling) invested in health products `fol2_amtinvest` between each of the treatment arms and the control group. Save the computed differences as an object named `ate`. Briefly interpret the result.
-
-**Hint**: Use `tapply()` to compute the group mean.
+Does receiving a safe box increase the amount invested in health products? We focus on the outcome measured 12 months from baseline during the second follow-up. Compare the mean of amount (in Kenyan shilling) invested in health products `fol2_amtinvest` between each of the treatment arms and the control group. Show the computed differences in a table. Briefly interpret the result.
 
 ## Answer 3
 
 ```{r}
-## compute group mean 
-group_mean <- tapply(rosca2$fol2_amtinvest, rosca2$treatment, mean)
-ate <- group_mean[c("safebox", "lockbox")] - group_mean["control"]
+rosca2 %>%
+  group_by(treatment) %>%
+  summarise(across(fol2_amtinvest, mean), .groups = "drop") %>%
+  pivot_wider(names_from = treatment, values_from = fol2_amtinvest) %>%
+  mutate(across(c(lockbox, safebox), ~ . - control)) %>%
+  select(lockbox, safebox) %>%
+  knitr::kable(col.names = c("ATE (Safe Box)", "ATE (Lock Box)"),
+               digits = 2)
 ```
 
 On average, receiving a safe box increases the investment in health products by `r round(tapply(rosca2$fol2_amtinvest, rosca2$treatment, mean) - mean(rosca2$fol2_amtinvest[rosca2$treatment == "control"]))["safebox"]` Kenyan shillings, while receiving a locked box increases the investment in health products by `r round(tapply(rosca2$fol2_amtinvest, rosca2$treatment, mean) - mean(rosca2$fol2_amtinvest[rosca2$treatment == "control"]))["lockbox"]` Kenyan shillings.
@@ -105,27 +127,18 @@ On average, receiving a safe box increases the investment in health products by 
 
 Examine the balance of pre-treatment variables, gender (`bg_female`), age (`bg_b1_age`) and marital status (`bg_married`). Are participants in the two treatment groups different from those in the control group?  What does the result of this analysis suggest in terms of the internal validity of the finding presented in the previous question?
 
-Compute the group mean for each variable using `tapply()`. 
-Save the computed means as a matrix named `covar_balance` where 
-the first column stores the group mean of `bf_female`, 
-the second column stores the group mean of `bg_b1_age`,
-and the last column stored the group mean of `bf_married`.
-Report this matrix as a nice-looking table using `knitr::kable()`.
+Compute the group mean for each variable using `group_by` and `summarise`.
+Report these numbers in a nice-looking table using `knitr::kable()`.
 
 ## Answer 4
 
 ```{r}
-# create a matrix of means 
-covar_balance <- cbind(
-  tapply(rosca2$bg_female, rosca2$treatment, mean),
-  tapply(rosca2$bg_b1_age, rosca2$treatment, mean),
-  tapply(rosca2$bg_married, rosca2$treatment, mean)
-)
-
-# report a table
-knitr::kable(covar_balance, 
-             col.names = c("Female", "Age", "Married"),
-             digits = 2)
+rosca2 %>%
+  group_by(treatment) %>%
+  summarise(across(c(bg_female, bg_b1_age, bg_married), mean),
+            .groups = "drop") %>%
+  knitr::kable(col.names = c("Treatment Condition", "Female", "Age", "Married"),
+               digits = 2)
 ```
 
 The safe box group has `r round(tapply(rosca2$bg_female, rosca2$treatment, mean)["safebox"],2)*100`% female, higher than the control (`r round(tapply(rosca2$bg_female, rosca2$treatment, mean)["control"],2)*100`%) and locked box group (`r round(tapply(rosca2$bg_female, rosca2$treatment, mean)["lockbox"],2)*100`%).  If gender is associated with amount of health investment, it might have confounded the relation betwen having a safe box and amount of investment. For example, if women are more likely to invest in health products, the effect of having a safe box might have been overestimated.
@@ -153,6 +166,19 @@ Does receiving a safe box or a locked box have different effects on the investme
 ## Answer 5
 
 ```{r}
+rosca2 %>%
+  filter(bg_female == 1) %>%
+  mutate(bg_married = ifelse(bg_married == 1, "Married", "Unmarried")) %>%
+  group_by(treatment, bg_married) %>%
+  summarise(across(fol2_amtinvest, mean), .groups = "drop") %>%
+  pivot_wider(names_from = treatment, values_from = fol2_amtinvest) %>%
+  mutate(across(c(lockbox, safebox), list(ate = ~ . - control))) %>%
+  select(bg_married, safebox_ate, lockbox_ate) %>%
+  knitr::kable(col.names = c("Status", "ATE (Safe Box)", "ATE (Lock Box)"),
+               digits = 2)
+```
+
+```{r, include=FALSE}
 # married 
 rosca2.married <- subset(rosca2, subset = (bg_married == 1) & (rosca2$bg_female == 1))
 invest_married <- tapply(rosca2.married$fol2_amtinvest, rosca2.married$treatment, mean)
@@ -162,14 +188,8 @@ ate_married <- invest_married[c("safebox", "lockbox")] - invest_married["control
 rosca2.unmarried <- subset(rosca2, subset = (bg_married == 0) & (rosca2$bg_female == 1))
 invest_unmarried <- tapply(rosca2.unmarried$fol2_amtinvest, rosca2.unmarried$treatment, mean)
 ate_unmarried    <- invest_unmarried[c("safebox", "lockbox")] - invest_unmarried["control"]
-
-# reprt 
-knitr::kable(
-  cbind(ate_married, ate_unmarried),
-  col.names = c("Married", "Unmarried"),
-  digits = 2
-)
 ```
+
 
 Having a safe box increases the average investment in health product by `r round(tapply(rosca2.married$fol2_amtinvest, rosca2.married$treatment, mean) - mean(rosca2.married$fol2_amtinvest[rosca2.married$treatment == "control"]))["safebox"]` Kenyan shillings among married women; having a locked box increases the average investment in health product by `r round(tapply(rosca2.married$fol2_amtinvest, rosca2.married$treatment, mean) - mean(rosca2.married$fol2_amtinvest[rosca2.married$treatment == "control"]))["lockbox"]` Kenyan shillings among married women.
 
