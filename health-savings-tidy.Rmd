@@ -49,26 +49,20 @@ Then create a cross-tab (of proportions, not counts) of study arm on the rows an
 
 Subset the data so that it contains only participants who were interviewed in 12 months during the second followup.  We will use this subset for the subsequent analyses. How many participants are left in each group of this subset?  Does the drop-out rate differ across the treatment conditions?  What does this result suggest about the internal and external validity of this study?
 
-Create a matrix named `rosca_dropout` where the first column contains the number of participants left in each group,
-and the second column contains the drop-out rate across different treatment conditions.
-Generate a nice-looking table using `knitr::kable()`
+Generate a nice-looking table showing the number of participants left and the drop-out rate across different treatment conditions using `knitr::kable()`.
 
 ## Question 3: Average Treatment Effect
 
 Does receiving a safe box increase the amount invested in health products? We focus on the outcome measured 12 months from baseline during the second follow-up. Compare the mean of amount (in Kenyan shilling) invested in health products `fol2_amtinvest` between each of the treatment arms and the control group. Show the computed differences in a table. Briefly interpret the result.
-
-**Hint**: Use `group_by` and `summarise` to compute the group mean.
 
 ## Question 4: Covariate Balance
 
 Examine the balance of pre-treatment variables, gender (`bg_female`), age (`bg_b1_age`) and marital status (`bg_married`). Are participants in the two treatment groups different from those in the control group?  What does the result of this analysis suggest in terms of the internal validity of the finding presented in the previous question?
 
 Compute the group mean for each variable using `group_by` and `summarise`.
-Report this matrix as a nice-looking table using `knitr::kable()`.
+Report these numbers in a nice-looking table using `knitr::kable()`.
 
 ## Question 5: Subgroup Effects
 
 Does receiving a safe box or a locked box have different effects on the investment of *married* versus *unmarried women*? Compare the mean investment in health products among married women across three groups. Then compare the mean investment in health products among unmarried women across three groups. Briefly interpret the result.  How does this analysis address the internal validity issue discussed in Question 4?
-
-**Hint:** you can group by multiple variables.
 
